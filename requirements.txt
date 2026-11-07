@@ -1,0 +1,9 @@
+pandas>=2.2
+numpy>=1.26
+requests>=2.32
+psycopg2-binary>=2.9
+flask>=3.0
+gunicorn>=22.0
+# pyarrow is only needed by the Airflow DAG (parquet hand-off between tasks):
+#   pip install pyarrow
+# Airflow itself runs in its own container (see docker-compose.yml).

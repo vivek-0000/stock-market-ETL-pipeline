@@ -1,0 +1,24 @@
+name: Daily stock ETL
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"   # 22:30 UTC, Mon-Fri (after US market close)
+  workflow_dispatch:           # adds a "Run workflow" button in the Actions tab
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install pandas numpy requests psycopg2-binary
+      - name: Run pipeline
+        run: python -m etl.pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+          SYMBOLS: AAPL,MSFT,GOOGL,AMZN,NVDA

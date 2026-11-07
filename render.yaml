@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: stock-etl-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn dashboard.app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL
+        sync: false   # paste your Neon connection string in the Render dashboard

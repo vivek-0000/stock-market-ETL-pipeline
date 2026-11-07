@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock ETL · Pipeline Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0a0d14; --panel:#11151f; --panel-2:#161b28; --line:#222a3b;
+  --text:#e7ebf3; --muted:#8892a6; --accent:#6c8cff; --accent-2:#9b6cff;
+  --up:#2ee59d; --down:#ff5d73; --warn:#ffb84d;
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,sans-serif;min-height:100vh;
+  background-image:radial-gradient(900px 420px at 85% -10%,rgba(108,140,255,.16),transparent),
+                   radial-gradient(700px 380px at -5% 10%,rgba(155,108,255,.10),transparent);}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 24px 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:26px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  display:grid;place-items:center;font-weight:700;box-shadow:0 6px 24px rgba(108,140,255,.35)}
+h1{font-size:18px;font-weight:650;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:12.5px}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;
+  background:var(--panel);font-size:12px;color:var(--muted)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up)}
+.dot.demo{background:var(--warn);box-shadow:0 0 10px var(--warn)}
+
+.card{background:linear-gradient(180deg,var(--panel),#0f131c);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.card h2{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:14px}
+
+/* pipeline flow */
+.flow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+.step{flex:1;min-width:150px;padding:14px 16px;border-radius:14px;background:var(--panel-2);border:1px solid var(--line);position:relative}
+.step b{display:block;font-size:13px}
+.step span{font-size:12px;color:var(--muted)}
+.step i{position:absolute;top:14px;right:14px;width:8px;height:8px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up)}
+.arrow{color:var(--line);font-size:18px}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.kpi .v{font-size:26px;font-weight:650;letter-spacing:-.02em;margin-top:2px}
+.kpi .s{font-size:12px;color:var(--muted)}
+
+/* ticker pills */
+.pills{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.pill{cursor:pointer;padding:10px 14px;border-radius:12px;border:1px solid var(--line);background:var(--panel);
+  transition:.15s;min-width:120px;font:inherit;color:inherit;text-align:left}
+.pill:hover{border-color:#34406a;transform:translateY(-1px)}
+.pill.active{border-color:var(--accent);background:linear-gradient(180deg,rgba(108,140,255,.16),rgba(108,140,255,.04));
+  box-shadow:0 0 0 3px rgba(108,140,255,.12)}
+.pill .t{font-weight:600;font-size:13px}
+.pill .p{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--muted)}
+.up{color:var(--up)} .down{color:var(--down)}
+
+.grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+.chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.chart-head h3{font-size:20px;font-weight:650}
+.range{display:flex;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.range button{background:none;border:0;color:var(--muted);padding:5px 11px;border-radius:7px;cursor:pointer;font:inherit;font-size:12px}
+.range button.on{background:var(--line);color:var(--text)}
+.chart-box{position:relative;height:300px}
+.vol-box{position:relative;height:90px;margin-top:6px}
+
+table{width:100%;border-collapse:collapse}
+th{font-weight:500;text-align:left;color:var(--muted);font-size:11.5px;padding:0 8px 8px 0;text-transform:uppercase;letter-spacing:.06em}
+td{padding:10px 8px 10px 0;border-top:1px solid var(--line);font-size:13px}
+td.mono{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)}
+.tag{padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:500}
+.tag.success{background:rgba(46,229,157,.12);color:var(--up)}
+.tag.failed{background:rgba(255,93,115,.12);color:var(--down)}
+.tag.running{background:rgba(255,184,77,.12);color:var(--warn)}
+footer{margin-top:28px;text-align:center;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">₹</div>
+      <div><h1>Stock ETL Monitor</h1><div class="sub">Alpha Vantage → Pandas → PostgreSQL · orchestrated by Airflow</div></div>
+    </div>
+    <div class="badge"><span class="dot" id="dot"></span><span id="mode">connecting…</span></div>
+  </header>
+
+  <div class="flow">
+    <div class="step"><i></i><b>Extract</b><span>REST API · retries · rate-limit aware</span></div><div class="arrow">→</div>
+    <div class="step"><i></i><b>Transform</b><span>dedupe · fill gaps · dates · SMA</span></div><div class="arrow">→</div>
+    <div class="step"><i></i><b>Load</b><span>PostgreSQL idempotent upsert</span></div><div class="arrow">→</div>
+    <div class="step"><i></i><b>Schedule</b><span>Airflow · Mon–Fri 22:30 UTC</span></div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="pills" id="pills"></div>
+    <div class="chart-head">
+      <h3 id="title">—</h3>
+      <div class="range" id="range">
+        <button data-d="30">30D</button><button data-d="60">60D</button><button data-d="90" class="on">90D</button><button data-d="120">ALL</button>
+      </div>
+    </div>
+    <div class="chart-box"><canvas id="price"></canvas></div>
+    <div class="vol-box"><canvas id="vol"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Recent pipeline runs</h2>
+    <table>
+      <thead><tr><th>Run</th><th>Started</th><th>Status</th><th>Extracted</th><th>Loaded</th><th>Duration</th><th>Message</th></tr></thead>
+      <tbody id="runs"></tbody>
+    </table>
+  </div>
+  <footer>Auto-refreshes every 60 s</footer>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const compact = n => Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(n);
+let current = null, days = 90, priceChart, volChart, symbols = [];
+
+Chart.defaults.color = '#8892a6';
+Chart.defaults.font.family = 'Inter';
+Chart.defaults.borderColor = '#1c2333';
+
+async function get(u){ return (await fetch(u)).json(); }
+
+function setMode(mode){
+  $('#mode').textContent = mode === 'live' ? 'Live · PostgreSQL' : 'Demo data · DB not connected';
+  $('#dot').className = 'dot ' + (mode === 'live' ? '' : 'demo');
+}
+
+async function loadSymbols(){
+  const r = await get('/api/symbols'); setMode(r.mode); symbols = r.data;
+  if(!current) current = symbols[0]?.symbol;
+  $('#pills').innerHTML = symbols.map(s => `
+    <button class="pill ${s.symbol===current?'active':''}" data-s="${s.symbol}">
+      <div class="t">${s.symbol}</div>
+      <div class="p">$${fmt(s.last_close)} <span class="${s.change_pct>=0?'up':'down'}">${s.change_pct>=0?'▲':'▼'} ${Math.abs(s.change_pct).toFixed(2)}%</span></div>
+    </button>`).join('');
+  document.querySelectorAll('.pill').forEach(p => p.onclick = () => { current = p.dataset.s; loadSymbols(); loadPrices(); });
+}
+
+async function loadPrices(){
+  if(!current) return;
+  const r = await get(`/api/prices/${current}?days=${days}`); const d = r.data;
+  const last = d[d.length-1], first = d[0];
+  const chg = (last.close/first.close-1)*100;
+  $('#title').innerHTML = `${current} <span style="font-size:14px;color:var(--muted);font-weight:500">$${fmt(last.close)}</span> <span class="${chg>=0?'up':'down'}" style="font-size:14px">${chg>=0?'+':''}${chg.toFixed(2)}% over period</span>`;
+  const labels = d.map(x=>x.date);
+  const ctx = $('#price').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,300);
+  grad.addColorStop(0,'rgba(108,140,255,.35)'); grad.addColorStop(1,'rgba(108,140,255,0)');
+  priceChart?.destroy(); volChart?.destroy();
+  const opts = {responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#161b28',borderColor:'#222a3b',borderWidth:1,padding:10}},
+    scales:{x:{grid:{display:false},ticks:{maxTicksLimit:8}},y:{grid:{color:'#171d2b'}}}};
+  priceChart = new Chart(ctx,{type:'line',data:{labels,datasets:[
+    {label:'Close',data:d.map(x=>x.close),borderColor:'#6c8cff',backgroundColor:grad,fill:true,tension:.25,pointRadius:0,borderWidth:2},
+    {label:'SMA 20',data:d.map(x=>x.sma_20),borderColor:'#ffb84d',borderDash:[5,4],pointRadius:0,borderWidth:1.5,tension:.25}]},options:opts});
+  volChart = new Chart($('#vol'),{type:'bar',data:{labels,datasets:[{label:'Volume',data:d.map(x=>x.volume),
+    backgroundColor:d.map((x,i)=>i&&x.close<d[i-1].close?'rgba(255,93,115,.55)':'rgba(46,229,157,.55)'),borderRadius:2}]},
+    options:{...opts,scales:{x:{display:false},y:{grid:{display:false},ticks:{maxTicksLimit:3,callback:compact}}}}});
+}
+
+async function loadRuns(){
+  const r = await get('/api/runs'); const runs = r.data;
+  const ok = runs.filter(x=>x.status==='success').length;
+  const latest = runs[0];
+  $('#kpis').innerHTML = `
+    <div class="card kpi"><div class="s">Tracked symbols</div><div class="v">${symbols.length}</div><div class="s">daily OHLCV + SMA</div></div>
+    <div class="card kpi"><div class="s">Latest run</div><div class="v ${latest?.status==='success'?'up':'down'}">${latest?latest.status:'—'}</div><div class="s">#${latest?.run_id ?? '—'}</div></div>
+    <div class="card kpi"><div class="s">Success rate</div><div class="v">${runs.length?Math.round(ok/runs.length*100):0}%</div><div class="s">last ${runs.length} runs</div></div>
+    <div class="card kpi"><div class="s">Rows loaded</div><div class="v">${latest?.rows_loaded?.toLocaleString() ?? 0}</div><div class="s">in latest run</div></div>`;
+  $('#runs').innerHTML = runs.map(x=>`<tr>
+    <td class="mono">#${x.run_id}</td>
+    <td>${new Date(x.started_at).toLocaleString([], {dateStyle:'medium',timeStyle:'short'})}</td>
+    <td><span class="tag ${x.status}">${x.status}</span></td>
+    <td>${x.rows_extracted ?? '—'}</td><td>${x.rows_loaded ?? '—'}</td>
+    <td class="mono">${x.duration_s!=null?x.duration_s+'s':'—'}</td>
+    <td style="color:var(--muted)">${x.message ?? ''}</td></tr>`).join('');
+}
+
+$('#range').onclick = e => { const b = e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#range button').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  days = +b.dataset.d; loadPrices(); };
+
+async function refresh(){ await loadSymbols(); await Promise.all([loadPrices(), loadRuns()]); }
+refresh(); setInterval(refresh, 60000);
+</script>
+</body>
+</html>
